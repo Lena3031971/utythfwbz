@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Тест: Генерация изображений с помощью ИИ</title>
+<style>
+  /* =========================================================
+     БАЗОВЫЕ СТИЛИ
+     ========================================================= */
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 24px 16px 56px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    color: #1f3a4d;
+    background: linear-gradient(160deg, #eef7fc 0%, #e0eff8 100%);
+    min-height: 100vh;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .app { max-width: 780px; margin: 0 auto; }
+
+  /* =========================================================
+     ШАПКА + ПОЛОСА ПРОГРЕССА
+     ========================================================= */
+  .app__header { text-align: center; margin-bottom: 20px; }
+
+  .app__title {
+    margin: 0 0 6px;
+    font-size: clamp(1.25rem, 4vw, 1.85rem);
+    line-height: 1.25;
+    color: #17475f;
+  }
+
+  .app__subtitle {
+    margin: 0 0 16px;
+    font-size: clamp(0.85rem, 2.6vw, 0.95rem);
+    color: #5b7f94;
+  }
+
+  .progress {
+    height: 10px;
+    background: #d5e8f3;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .progress__bar {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #9ecfe6, #5fa8cd);
+    transition: width .35s ease;
+  }
+
+  .progress__label {
+    margin-top: 8px;
+    font-size: 0.82rem;
+    color: #5b7f94;
+  }
+
+  /* =========================================================
+     КАРТОЧКА
+     ========================================================= */
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 22px;
+    box-shadow: 0 12px 30px rgba(23, 71, 95, .09);
+  }
+
+  .hidden { display: none !important; }
+
+  /* =========================================================
+     ВОПРОС
+     ========================================================= */
+  .question__counter {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #7ba3b8;
+  }
+
+  .question__title {
+    margin: 8px 0 18px;
+    font-size: clamp(1.05rem, 3.2vw, 1.25rem);
+    line-height: 1.4;
+    color: #17475f;
+  }
+
+  .question__body { display: flex; flex-direction: column; }
+
+  /* =========================================================
+     ВАРИАНТЫ ОТВЕТОВ (кнопки)
+     ========================================================= */
+  .options { display: flex; flex-direction: column; gap: 10px; }
+
+  .option {
+    display: block;
+    width: 100%;
+    padding: 14px 16px;
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    color: #ffffff;
+    background: #B3D4E6;            /* нежно-голубой фон по требованию */
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-shadow: 0 1px 1px rgba(23, 71, 95, .18);
+    transition: background .18s ease, transform .12s ease;
+  }
+
+  /* hover: чуть темнее */
+  .option:hover:not(:disabled):not(.option--selected) { background: #8FBED6; }
+  .option:active:not(:disabled) { transform: scale(.99); }
+  .option:disabled { cursor: default; }
+  .option:focus-visible { outline: 3px solid #6fa9c8; outline-offset: 2px; }
+
+  /* выбранный вариант (для вопросов с множественным выбором) */
+  .option--selected {
+    background: #7FB6D2;
+    box-shadow: inset 0 0 0 2px #4b93b8;
+  }
+
+  /* правильный вариант — после проверки */
+  .option--correct {
+    background: #7FBF9B;
+    box-shadow: inset 0 0 0 2px #4f9b72;
+  }
+
+  /* неправильно выбранный вариант — после проверки */
+  .option--wrong {
+    background: #E09898;
+    box-shadow: inset 0 0 0 2px #c46e6e;
+  }
+
+  /* =========================================================
+     СОПОСТАВЛЕНИЕ
+     ========================================================= */
+  .match { display: flex; flex-direction: column; gap: 14px; }
+
+  .match__row { display: flex; flex-direction: column; gap: 8px; }
+
+  .match__left { font-weight: 600; }
+
+  .match__select {
+    width: 100%;
+    padding: 12px;
+    font: inherit;
+    color: #1f3a4d;
+    background: #fff;
+    border: 2px solid #cfe3ee;
+    border-radius: 8px;
+  }
+
+  .match__select:focus { outline: none; border-color: #8FBED6; }
+  .match__select:disabled { background: #f3f8fb; color: #5b7f94; }
+
+  /* =========================================================
+     ПОЛЕ СВОБОДНОГО ОТВЕТА
+     ========================================================= */
+  .answer-text {
+    width: 100%;
+    padding: 12px;
+    font: inherit;
+    color: #1f3a4d;
+    background: #fff;
+    border: 2px solid #cfe3ee;
+    border-radius: 8px;
+    resize: vertical;
+  }
+
+  .answer-text:focus { outline: none; border-color: #8FBED6; }
+  .answer-text:disabled { background: #f3f8fb; color: #5b7f94; }
+
+  /* =========================================================
+     ПОДСКАЗКИ
+     ========================================================= */
+  .hint { margin: 12px 0 0; font-size: 0.85rem; color: #7ba3b8; }
+  .hint--warn { color: #c96b6b; font-weight: 600; }
+
+  /* =========================================================
+     КНОПКИ ДЕЙСТВИЙ
+     ========================================================= */
+  .btn {
+    width: 100%;
+    margin-top: 18px;
+    padding: 14px 22px;
+    font: inherit;
+    font-weight: 700;
+    color: #ffffff;
+    background: #B3D4E6;            /* нежно-голубой фон по требованию */
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-shadow: 0 1px 1px rgba(23, 71, 95, .18);
+    transition: background .18s ease, transform .12s ease;
+  }
+
+  .btn:hover { background: #8FBED6; }
+  .btn:active { transform: scale(.99); }
+  .btn:focus-visible { outline: 3px solid #6fa9c8; outline-offset: 2px; }
+
+  @media (min-width: 620px) {
+    .btn { width: auto; min-width: 260px; }
+  }
+
+  /* =========================================================
+     БЛОК ОБРАТНОЙ СВЯЗИ
+     ========================================================= */
+  .feedback {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+  }
+
+  .feedback--ok { background: #e9f7ef; border-left: 4px solid #5fae7e; }
+  .feedback--no { background: #fdeeee; border-left: 4px solid #dd8a8a; }
+
+  .feedback__head { font-weight: 800; margin-bottom: 10px; }
+  .feedback__correct { margin-bottom: 10px; }
+  .feedback__label { color: #33566b; }
+  .feedback__list { margin: 6px 0 0; padding-left: 20px; }
+  .feedback__list li { margin-bottom: 4px; }
+  .feedback__note { margin-bottom: 10px; color: #a15454; font-weight: 600; }
+  .feedback__expl { color: #33566b; }
+
+  /* =========================================================
+     ИТОГОВЫЙ ЭКРАН
+     ========================================================= */
+  .result { text-align: center; }
+  .result__emoji { font-size: 2.6rem; line-height: 1; }
+
+  .result__score {
+    margin: 10px 0 4px;
+    font-size: clamp(2.4rem, 10vw, 3.4rem);
+    font-weight: 800;
+    color: #2f7fa8;
+    line-height: 1;
+  }
+
+  .result__total { font-size: 1.1rem; font-weight: 600; color: #7ba3b8; }
+
+  .result__msg {
+    margin: 14px 0 6px;
+    font-size: clamp(1.05rem, 3.5vw, 1.25rem);
+    font-weight: 700;
+    color: #17475f;
+  }
+
+  .result__sub {
+    margin: 0 auto;
+    max-width: 520px;
+    color: #5b7f94;
+    font-size: 0.95rem;
+  }
+
+  /* =========================================================
+     МОБИЛЬНАЯ АДАПТАЦИЯ
+     ========================================================= */
+  @media (max-width: 480px) {
+    body { padding: 16px 10px 40px; }
+    .card { padding: 16px; border-radius: 14px; }
+    .option { padding: 13px 14px; font-size: 0.95rem; }
+  }
+</style>
+</head>
+<body>
+
+<main class="app">
+
+  <!-- Шапка с названием и прогрессом -->
+  <header class="app__header">
+    <h1 class="app__title">Генерация изображений с помощью ИИ</h1>
+    <p class="app__subtitle">Интерактивный тест из 10 вопросов</p>
+
+    <div class="progress" aria-hidden="true">
+      <div class="progress__bar" id="progressBar"></div>
+    </div>
+    <div class="progress__label" id="progressLabel">Вопрос 1 из 10</div>
+  </header>
+
+  <!-- Сюда выводится текущий вопрос -->
+  <section id="quiz" class="card" aria-live="polite"></section>
+
+  <!-- Сюда выводится итоговый результат -->
+  <section id="result" class="card hidden" aria-live="polite"></section>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============================================================
+     1. ДАННЫЕ ТЕСТА
+     ------------------------------------------------------------
+     ЧТОБЫ ИЗМЕНИТЬ ВОПРОС — правьте объект в массиве ниже.
+     ЧТОБЫ ДОБАВИТЬ НОВЫЙ ВОПРОС — добавьте ещё один объект
+     в конец массива (счётчик и прогресс пересчитаются сами).
+
+     Поддерживаемые типы:
+       type: 'single'   — один правильный вариант
+              options: [...]   массив строк
+              correct: 2       индекс правильного варианта (с нуля)
+
+       type: 'multiple' — несколько правильных вариантов
+              options: [...]
+              correct: [0, 2, 4]   массив индексов правильных вариантов
+
+       type: 'match'    — сопоставление «слева → справа»
+              left:  [...]     левая колонка
+              right: [...]     правая колонка (варианты для выбора)
+              correct: [0,1,0,2]  для каждой строки left — индекс
+                                  подходящего элемента из right
+
+       type: 'text'     — свободный ответ
+              reference: '...'  эталонный ответ (показывается после)
+              (оценка автоматическая — по ключевым словам)
+
+     В любом типе обязательны поля:
+       text        — формулировка вопроса
+       explanation — пояснение «Почему это верно»
+     ============================================================ */
+  const questions = [
+
+    /* ---------- ВОПРОС 1 ---------- */
+    {
+      type: 'single',
+      text: 'Что в первую очередь нужно для получения изображения в нейросети?',
+      options: [
+        'Загрузить референс-фото',
+        'Составить текстовый запрос (промпт)',
+        'Выбрать стиль из галереи',
+        'Настроить параметры шума'
+      ],
+      correct: 1,
+      explanation: 'Промпт — это основа генерации. Без него нейросеть не знает, что рисовать.'
+    },
+
+    /* ---------- ВОПРОС 2 ---------- */
+    {
+      type: 'multiple',
+      text: 'Какие типы визуальных материалов реально генерировать с помощью нейросетей по текстовому описанию? (Выберите все подходящие варианты.)',
+      options: [
+        'Иллюстрация к рассказу',
+        'Схема устройства с подписями',
+        'Плакат с текстом на изображении',
+        'Детальный сборочный чертёж по ГОСТ с размерами',
+        'Стилизованная инфографика'
+      ],
+      correct: [0, 2, 4],
+      explanation: 'Схемы и чертежи с точными размерами нейросети делают плохо: подписи часто искажаются, размеры не соответствуют стандартам. Зато хорошо получаются стилизации, плакаты, иллюстрации и «инфографика в стиле».'
+    },
+
+    /* ---------- ВОПРОС 3 ---------- */
+    {
+      type: 'match',
+      text: 'Сопоставьте тип визуального материала и наиболее подходящий стиль генерации.',
+      left: [
+        'Плакат для студенческой площадки',
+        'Иллюстрация для методического пособия',
+        'Концепт-арт для проекта',
+        'Иллюстрация «как это выглядит в жизни»'
+      ],
+      right: [
+        'Яркий коллаж, крупные заголовки, контрастные цвета',
+        'Акварель, мягкая палитра, без лишних деталей',
+        'Фотореализм, кинематографичный свет',
+        'Плоский векторный стиль, минимализм'
+      ],
+      correct: [0, 1, 2, 3],
+      explanation: 'Для плакатов нужен акцент на читаемости; для методичек — чистота; концепт-арт выигрывает от кинематографичности; реалистичные сцены — от фотореализма.'
+    },
+
+    /* ---------- ВОПРОС 4 ---------- */
+    {
+      type: 'single',
+      text: 'Какой параметр чаще всего влияет на «похожесть» результата на запрос?',
+      options: [
+        'Количество шагов генерации',
+        'Seed (зерно)',
+        'Промпт и негативные промты',
+        'Формат файла (PNG/JPG)'
+      ],
+      correct: 2,
+      explanation: 'Промпт задаёт содержание, негативные промты убирают лишнее. Остальные параметры влияют на детализацию и повторяемость, но не на смысл.'
+    },
+
+    /* ---------- ВОПРОС 5 ---------- */
+    {
+      type: 'multiple',
+      text: 'Что стоит указать в промпте, чтобы получить более предсказуемый результат? (Выберите все подходящие.)',
+      options: [
+        'Роль («ты — профессиональный иллюстратор»)',
+        'Стиль и референс (например, «в стиле студии Ghibli»)',
+        'Композицию и ракурс («вид сверху, изометрия»)',
+        'Точный размер в пикселях как часть промпта',
+        'Ограничения («без текста», «без людей»)'
+      ],
+      correct: [0, 1, 2, 4],
+      explanation: 'Размер лучше задавать в настройках генерации, а не в промпте — так результат будет стабильнее.'
+    },
+
+    /* ---------- ВОПРОС 6 ---------- */
+    {
+      type: 'match',
+      text: 'Сопоставьте задачу педагога и подходящий тип генерации.',
+      left: [
+        'Нужна иллюстрация к задаче по физике (рычаг, силы)',
+        'Нужен плакат «Правила цифровой этики» с крупным заголовком',
+        'Нужна схема устройства для презентации',
+        'Нужна иллюстрация «типичный рабочий день автомеханика»'
+      ],
+      right: [
+        'Генерация как основа, затем векторизация и подписи в редакторе',
+        'Только генерация, если текст простой и короткий',
+        'Генерация в фотореалистичном стиле'
+      ],
+      correct: [0, 1, 0, 2],
+      explanation: 'Текст и точные подписи лучше добавлять в редакторе. Для схем генерация — это «черновик», который затем дорабатывают.'
+    },
+
+    /* ---------- ВОПРОС 7 ---------- */
+    {
+      type: 'single',
+      text: 'Почему нейросети часто плохо пишут текст на изображениях?',
+      options: [
+        'Они не знают шрифтов',
+        'Текст — это семантика, а нейросеть работает с пикселями и стилями',
+        'Ограничения авторских прав на шрифты',
+        'Это баг конкретной модели'
+      ],
+      correct: 1,
+      explanation: 'Нейросеть «рисует» буквы как узоры, а не как осмысленные символы. Поэтому надписи часто искажены.'
+    },
+
+    /* ---------- ВОПРОС 8 ---------- */
+    {
+      type: 'text',
+      text: 'Опишите, как вы будете действовать, если нейросеть сгенерировала изображение, которое почти подходит, но в нём есть ошибка (например, лишний объект или неверный ракурс).',
+      reference: 'Я отредактирую промпт, добавив негативный промпт и уточню композицию. Если это не поможет — сгенерирую несколько вариантов и выберу лучший, затем подправлю в графическом редакторе.',
+      explanation: 'Это реалистичный подход: сначала уточняем запрос, потом дорабатываем результат.'
+    },
+
+    /* ---------- ВОПРОС 9 ---------- */
+    {
+      type: 'multiple',
+      text: 'Какие виды нейросетей/сервисов чаще всего используют для генерации изображений по описанию? (Выберите все верные.)',
+      options: [
+        'Midjourney',
+        'Stable Diffusion',
+        'Kandinsky',
+        'ChatGPT',
+        'Шедеврум'
+      ],
+      correct: [0, 1, 2, 4],
+      explanation: 'ChatGPT — текстовая модель, она не генерирует изображения напрямую (может только составить промпт для другой нейросети).'
+    },
+
+    /* ---------- ВОПРОС 10 ---------- */
+    {
+      type: 'single',
+      text: 'Вы готовите раздаточный материал для студентов: нужна простая схема «цикл работы двигателя» в плоском стиле без лишних деталей. Какой вариант действий наиболее рационален?',
+      options: [
+        'Попросить нейросеть сразу выдать схему с подписями и использовать как есть',
+        'Сгенерировать основу в нужном стиле, затем в редакторе добавить чёткие подписи и стрелки',
+        'Попросить текстовую модель написать промпт для Midjourney и надеяться на идеальный результат',
+        'Не использовать ИИ вообще, потому что он всё делает плохо'
+      ],
+      correct: 1,
+      explanation: 'ИИ — инструмент для быстрого черновика, а точность и читаемость обеспечивают в редакторе.'
+    }
+  ];
+
+  /* ============================================================
+     2. СОСТОЯНИЕ ТЕСТА И ССЫЛКИ НА DOM
+     ============================================================ */
+  const quizEl    = document.getElementById('quiz');
+  const resultEl  = document.getElementById('result');
+  const barEl     = document.getElementById('progressBar');
+  const labelEl   = document.getElementById('progressLabel');
+
+  const total = questions.length;   // всего вопросов (10)
+  let current = 0;                  // индекс текущего вопроса
+  let score   = 0;                  // количество правильных ответов
+  let answered = false;             // ответ на текущий вопрос уже дан?
+
+  /* ============================================================
+     3. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+     ============================================================ */
+
+  /** Быстрое создание элемента: el('div', 'класс', 'текст') */
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  }
+
+  /** Перемешивание массива (для вариантов в вопросах-сопоставлениях) */
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  /** Блок «Правильный ответ: ...» */
+  function correctAnswer(label, value) {
+    const box = el('div', 'feedback__correct');
+    box.append(el('span', 'feedback__label', label + ' '));
+    box.append(el('strong', null, value));
+    return box;
+  }
+
+  /** Блок «Правильные ответы: список» */
+  function correctAnswerList(label, values) {
+    const box = el('div', 'feedback__correct');
+    box.append(el('span', 'feedback__label', label));
+    const ul = el('ul', 'feedback__list');
+    values.forEach(function (v) { ul.append(el('li', null, v)); });
+    box.append(ul);
+    return box;
+  }
+
+  /** Обновление полосы прогресса и подписи */
+  function updateProgress() {
+    const done = Math.min(total, current + (answered ? 1 : 0));
+    barEl.style.width = (done / total * 100) + '%';
+    labelEl.textContent = current < total
+      ? 'Вопрос ' + (current + 1) + ' из ' + total
+      : 'Тест завершён';
+  }
+
+  /* ============================================================
+     4. ОБЩИЙ ФИНАЛ ВОПРОСА: показ вердикта, правильного ответа,
+        пояснения и кнопки «Следующий вопрос»
+     ============================================================ */
+  function finish(card, isCorrect, correctNode, explanation, note) {
+    answered = true;
+    if (isCorrect) score++;
+
+    const fb = el('div', 'feedback ' + (isCorrect ? 'feedback--ok' : 'feedback--no'));
+
+    // Вердикт
+    fb.append(el('div', 'feedback__head', isCorrect ? '✅ Верно!' : '❌ Неверно'));
+
+    // Правильный ответ
+    if (correctNode) fb.append(correctNode);
+
+    // Дополнительная заметка (например, для свободного ответа)
+    if (note) fb.append(el('div', 'feedback__note', note));
+
+    // Пояснение «Почему это верно»
+    const exp = el('div', 'feedback__expl');
+    exp.append(el('strong', null, 'Почему это верно: '));
+    exp.append(document.createTextNode(explanation));
+    fb.append(exp);
+
+    card.append(fb);
+
+    // Кнопка перехода дальше
+    const next = el('button', 'btn',
+      current === total - 1 ? 'Показать результат' : 'Следующий вопрос →');
+    next.type = 'button';
+    next.addEventListener('click', function () {
+      current++;
+      renderQuestion();
+    });
+    card.append(next);
+
+    updateProgress();
+    fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /* ============================================================
+     5. РЕНДЕР ВОПРОСОВ РАЗНЫХ ТИПОВ
+     ============================================================ */
+
+  /** Тип «один правильный вариант» */
+  function renderSingle(q, body, card) {
+    const list = el('div', 'options');
+
+    q.options.forEach(function (text, i) {
+      const btn = el('button', 'option', text);
+      btn.type = 'button';
+
+      btn.addEventListener('click', function () {
+        if (answered) return;
+
+        // Подсвечиваем правильный и (если нужно) ошибочный вариант
+        Array.from(list.children).forEach(function (b, idx) {
+          b.disabled = true;
+          if (idx === q.correct) b.classList.add('option--correct');
+          else if (idx === i) b.classList.add('option--wrong');
+        });
+
+        const ok = (i === q.correct);
+        finish(card, ok, correctAnswer('Правильный ответ:', q.options[q.correct]), q.explanation);
+      });
+
+      list.append(btn);
+    });
+
+    body.append(list);
+  }
+
+  /** Тип «несколько правильных вариантов» */
+  function renderMultiple(q, body, card) {
+    const list = el('div', 'options');
+    const chosen = new Set();   // индексы выбранных вариантов
+
+    q.options.forEach(function (text, i) {
+      const btn = el('button', 'option', text);
+      btn.type = 'button';
+
+      btn.addEventListener('click', function () {
+        if (answered) return;
+        if (chosen.has(i)) {
+          chosen.delete(i);
+          btn.classList.remove('option--selected');
+        } else {
+          chosen.add(i);
+          btn.classList.add('option--selected');
+        }
+        hint.classList.remove('hint--warn');
+        hint.textContent = 'Выберите один или несколько вариантов, затем нажмите «Ответить».';
+      });
+
+      list.append(btn);
+    });
+
+    body.append(list);
+
+    const hint = el('div', 'hint', 'Выберите один или несколько вариантов, затем нажмите «Ответить».');
+    body.append(hint);
+
+    const check = el('button', 'btn', 'Ответить');
+    check.type = 'button';
+
+    check.addEventListener('click', function () {
+      if (answered) return;
+
+      if (chosen.size === 0) {
+        hint.textContent = 'Сначала выберите хотя бы один вариант.';
+        hint.classList.add('hint--warn');
+        return;
+      }
+
+      const correctSet = new Set(q.correct);
+      const ok = chosen.size === correctSet.size &&
+                 Array.from(chosen).every(function (i) { return correctSet.has(i); });
+
+      // Подсветка вариантов
+      Array.from(list.children).forEach(function (b, idx) {
+        b.disabled = true;
+        if (correctSet.has(idx)) b.classList.add('option--correct');
+        else if (chosen.has(idx)) b.classList.add('option--wrong');
+      });
+
+      check.remove();
+      hint.remove();
+
+      const node = correctAnswerList('Правильные ответы:',
+        q.correct.map(function (i) { return q.options[i]; }));
+
+      finish(card, ok, node, q.explanation);
+    });
+
+    body.append(check);
+  }
+
+  /** Тип «сопоставление» */
+  function renderMatch(q, body, card) {
+    // Правые варианты перемешиваем, чтобы ответ не читался «по порядку»
+    const order = shuffle(q.right.map(function (_, i) { return i; }));
+
+    const wrap = el('div', 'match');
+    const selects = [];
+
+    q.left.forEach(function (leftText) {
+      const row = el('div', 'match__row');
+      row.append(el('div', 'match__left', leftText));
+
+      const sel = document.createElement('select');
+      sel.className = 'match__select';
+
+      const ph = document.createElement('option');
+      ph.value = '';
+      ph.textContent = '— выберите вариант —';
+      sel.append(ph);
+
+      order.forEach(function (id) {
+        const o = document.createElement('option');
+        o.value = String(id);
+        o.textContent = q.right[id];
+        sel.append(o);
+      });
+
+      selects.push(sel);
+      row.append(sel);
+      wrap.append(row);
+    });
+
+    body.append(wrap);
+
+    const hint = el('div', 'hint', 'Подберите подходящий вариант для каждой строки.');
+    body.append(hint);
+
+    const check = el('button', 'btn', 'Ответить');
+    check.type = 'button';
+
+    check.addEventListener('click', function () {
+      if (answered) return;
+
+      if (selects.some(function (s) { return s.value === ''; })) {
+        hint.textContent = 'Заполните все строки, пожалуйста.';
+        hint.classList.add('hint--warn');
+        return;
+      }
+
+      const ok = selects.every(function (s, i) {
+        return Number(s.value) === q.correct[i];
+      });
+
+      selects.forEach(function (s) { s.disabled = true; });
+      check.remove();
+      hint.remove();
+
+      const lines = q.left.map(function (l, i) {
+        return l + ' → ' + q.right[q.correct[i]];
+      });
+
+      finish(card, ok, correctAnswerList('Правильное сопоставление:', lines), q.explanation);
+    });
+
+    body.append(check);
+  }
+
+  /** Тип «свободный ответ» */
+  function renderText(q, body, card) {
+    const ta = document.createElement('textarea');
+    ta.className = 'answer-text';
+    ta.rows = 5;
+    ta.placeholder = 'Напишите свой вариант ответа...';
+    body.append(ta);
+
+    const hint = el('div', 'hint',
+      'Ответ оценивается автоматически по ключевым словам — сравните его с эталоном.');
+    body.append(hint);
+
+    const check = el('button', 'btn', 'Ответить');
+    check.type = 'button';
+
+    check.addEventListener('click', function () {
+      if (answered) return;
+
+      const value = ta.value.trim();
+      if (value.length < 10) {
+        hint.textContent = 'Напишите ответ чуть подробнее (хотя бы одно предложение).';
+        hint.classList.add('hint--warn');
+        return;
+      }
+
+      ta.disabled = true;
+      check.remove();
+      hint.remove();
+
+      // Ключевые слова, по которым засчитывается ответ
+      const keywords = ['промпт', 'промт', 'негатив', 'редакт', 'редактор',
+                        'вариант', 'уточн', 'композиц', 'запрос'];
+      const low = value.toLowerCase();
+      const hits = keywords.filter(function (k) { return low.indexOf(k) !== -1; }).length;
+      const ok = hits >= 2;
+
+      const node = correctAnswer('Пример правильного ответа:', q.reference);
+      finish(card, ok, node, q.explanation,
+        ok ? null : 'Ваш ответ не содержит ключевых идей эталона — сравните формулировки.');
+    });
+
+    body.append(check);
+  }
+
+  /* ============================================================
+     6. РЕНДЕР ТЕКУЩЕГО ВОПРОСА
+     ============================================================ */
+  function renderQuestion() {
+    answered = false;
+
+    // Вопросы закончились — показываем результат
+    if (current >= total) {
+      showResult();
+      return;
+    }
+
+    const q = questions[current];
+
+    quizEl.innerHTML = '';
+    quizEl.classList.remove('hidden');
+    resultEl.classList.add('hidden');
+
+    const card = el('div', 'question');
+    card.append(el('div', 'question__counter', 'Вопрос ' + (current + 1) + ' из ' + total));
+    card.append(el('h2', 'question__title', q.text));
+
+    const body = el('div', 'question__body');
+    card.append(body);
+
+    quizEl.append(card);
+
+    // Выбор рендера по типу вопроса
+    switch (q.type) {
+      case 'single':   renderSingle(q, body, card);   break;
+      case 'multiple': renderMultiple(q, body, card); break;
+      case 'match':    renderMatch(q, body, card);    break;
+      case 'text':     renderText(q, body, card);     break;
+      default:
+        body.append(el('div', 'hint', 'Неизвестный тип вопроса: ' + q.type));
+    }
+
+    updateProgress();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /* ============================================================
+     7. ИТОГОВЫЙ ЭКРАН
+     ============================================================ */
+  function showResult() {
+    quizEl.classList.add('hidden');
+    quizEl.innerHTML = '';
+    resultEl.classList.remove('hidden');
+
+    updateProgress(); // полоса станет 100%, подпись «Тест завершён»
+
+    // Подбираем сообщение под количество баллов
+    let title, sub, emoji;
+    if (score === total) {
+      emoji = '🎉';
+      title = 'Идеально!';
+      sub = 'Вы отлично разбираетесь в генерации изображений с помощью ИИ.';
+    } else if (score >= 8) {
+      emoji = '🎉';
+      title = 'Хороший уровень';
+      sub = 'Вы уверенно владеете темой — осталось отшлифовать детали.';
+    } else if (score >= 6) {
+      emoji = '👍';
+      title = 'Неплохо, но есть что подтянуть';
+      sub = 'Основы понятны. Стоит повторить параметры генерации и работу с текстом на изображениях.';
+    } else if (score >= 4) {
+      emoji = '📚';
+      title = 'Есть над чем поработать';
+      sub = 'Перечитайте материал о промптах, стилях и ограничениях нейросетей.';
+    } else {
+      emoji = '📚';
+      title = 'Стоит начать с основ';
+      sub = 'Попробуйте пройти тест ещё раз после изучения базовых принципов работы нейросетей.';
+    }
+
+    resultEl.innerHTML = '';
+
+    const box = el('div', 'result');
+    box.append(el('div', 'result__emoji', emoji));
+
+    const scoreLine = el('div', 'result__score');
+    scoreLine.append(document.createTextNode(String(score)));
+    scoreLine.append(el('span', 'result__total', ' из ' + total));
+    box.append(scoreLine);
+
+    box.append(el('div', 'result__msg', title));
+    box.append(el('p', 'result__sub', sub));
+
+    const again = el('button', 'btn', 'Пройти заново');
+    again.type = 'button';
+    again.addEventListener('click', function () {
+      current = 0;
+      score = 0;
+      answered = false;
+      renderQuestion();
+    });
+    box.append(again);
+
+    resultEl.append(box);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /* ============================================================
+     8. СТАРТ ТЕСТА
+     ============================================================ */
+  renderQuestion();
+
+})();
+</script>
+</body>
+</html>
